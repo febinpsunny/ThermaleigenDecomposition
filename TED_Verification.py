@@ -94,20 +94,21 @@ def Ted_Algorithm(Φ:np.array , δΦ:np.array, T:np.array, Num_iter:int=20):
             error=error+i
         error=error/(len(δΦ_new))
 
-        errorVal = np.append(errorVal, error)
-        
-        if error>0:
-            stepDir='-'
-        elif error<0:
-            stepDir='+'
-        else:
-            return errorVal
-        
         Φ_old = Φ_new
         δΦ_old = δΦ_new
-    print("ΔΦ:", Φ_old)
 
-    return errorVal
+        errorVal = np.append(errorVal, error)
+        if math.ceil(math.log(np.abs(error),10))<=(-3):
+            return errorVal, δΦ_old
+        else:
+            if error>0:
+                stepDir='-'
+            elif error<0:
+                stepDir='+'
+            else:
+                return errorVal, δΦ_old
+
+    return errorVal, δΦ_old
 
 def TED_iteration(Φ:np.array , δΦ:np.array, stepDir:str, P:np.array, P_inv:np.array, T_D:np.array, T:np.array):
 
@@ -183,13 +184,16 @@ def main():
     Φ , δΦ = phaseChange(size)
 
     # Generate T-array 
-    #T = TMatrixGen(size)
+    T = TMatrixGen(size)
 
-    T = TMatrixGen_rand(size)
+    #T = TMatrixGen_rand(size)
 
-    iterError=Ted_Algorithm(Φ , δΦ, T, Num_iter)
+    iterError, ΔΦ =Ted_Algorithm(Φ , δΦ, T, Num_iter)
 
     plotGraph(iterError)
+
+    print("Original phase values:", Φ)
+    print("Final phase values:", (Φ+ΔΦ))
 
     return None
 
