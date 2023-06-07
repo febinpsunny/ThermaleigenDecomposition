@@ -4,7 +4,7 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.linalg import eig
+from scipy.stats import mode
 import sys
 from pprint import pprint
 import math
@@ -44,6 +44,7 @@ def radianManagement(inputPhaseMat:np.array):
             phaseMat=np.append(phaseMat, 0)
     return np.array(phaseMat)
 
+#* Thermal crosstalk coefficient calculation utilities: BEGIN 
 def TMatrixGen(size:int=10):
     # TODO: This assertion is just a place holder; with proper T matrix generation through extrapolation this limiter can be lifted
     assert size<=10, "Current T matrix generation only supports up to 10 MRs."
@@ -70,8 +71,31 @@ def TMatrixGen_rand(size:int=10):
     np.fill_diagonal(T, 1)
 
     return T
+#* Thermal crosstalk coefficient calculation utilities: END 
 
-def Ted_Algorithm(Φ:np.array , δΦ:np.array, T:np.array, Num_iter:int=20):
+#* Error calculation utilities: BEGIN 
+def meanErrorCalc(Φ:np.array):
+    error =0
+    for i in Φ:
+        error=error+i
+        error=error/(len(Φ))
+    
+    return error
+
+def medianErrorCalc(Φ:np.array):
+    return np.median(Φ)
+
+def modeErrorCalc(Φ:np.array):
+    # Only concerning this iteration with primary mode
+    return mode(Φ)[0]
+
+def maxErrorCalc(Φ:np.array):
+    return np.max(Φ)
+
+#* Error calculation utilities: END 
+
+#* Core algorithm functions: BEGIN 
+def Ted_Algorithm(Φ:np.array , δΦ:np.array, T:np.array):
     # Iteratively calculate error function, update phase variables, relaunch TED iteration
     errorVal=[]
 
@@ -84,15 +108,13 @@ def Ted_Algorithm(Φ:np.array , δΦ:np.array, T:np.array, Num_iter:int=20):
     P_inv = np.linalg.inv(P)
     T_D = np.diag(Λ)
 
-    for i in range(Num_iter):
+    while(True):
         error=0
         Φ_new = TED_iteration(Φ_old , δΦ_old, stepDir, P, P_inv, T_D, T)
 
         δΦ_new = Φ_new-Φ_old
         #print(δΦ_new)
-        for i in δΦ_new:
-            error=error+i
-        error=error/(len(δΦ_new))
+        error = meanErrorCalc(δΦ_new)
 
         Φ_old = Φ_new
         δΦ_old = δΦ_new
@@ -158,7 +180,9 @@ def TED_iteration(Φ:np.array , δΦ:np.array, stepDir:str, P:np.array, P_inv:np
     Φ_new = radianManagement(Φ_new)
     
     return Φ_new
+#* Core algorithm functions: END
 
+#* Graphing utility
 def plotGraph(errorList:np.array):
     print("Final error list:",errorList)
 
@@ -172,28 +196,26 @@ def main():
 
     if len(args)==0:
         size=10
-        Num_iter=20
-    elif len(args)==2:
+    elif len(args)==1:
         size= int(args[0])
-        Num_iter=int(args[1])
         
     else:
-        print("Size of MR bank and number of iterations expected as inputs")
+        print("Size of MR bank expected as input")
         return None
     # generate phase matrices
     Φ , δΦ = phaseChange(size)
 
     # Generate T-array 
-    T = TMatrixGen(size)
+    #T = TMatrixGen(size)
 
-    #T = TMatrixGen_rand(size)
+    T = TMatrixGen_rand(size)
 
-    iterError, ΔΦ =Ted_Algorithm(Φ , δΦ, T, Num_iter)
+    iterError, ΔΦ =Ted_Algorithm(Φ , δΦ, T)
 
     plotGraph(iterError)
 
     print("Original phase values:", Φ)
-    print("Final phase values:", (Φ+ΔΦ))
+    print("Final phase values:", radianManagement(Φ+ΔΦ))
 
     return None
 
