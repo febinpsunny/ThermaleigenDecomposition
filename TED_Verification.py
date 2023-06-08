@@ -1,6 +1,7 @@
-# Author: Febin Sunny (06/05/2023)
-# TED-based thermal crosstalk correction strategy, implemented from:
-# M. Milanizadeh, et al., "Canceling Thermal Cross-Talk Effects in Photonic Integrated Circuits," IEEE JLT, vol. 37, no. 4, 2019
+#* Author: Febin Sunny (06/05/2023)
+#* TED-based thermal crosstalk correction strategy, implemented using evaluatio from:
+#* M. Milanizadeh, et al., "Canceling Thermal Cross-Talk Effects in Photonic Integrated Circuits," IEEE JLT, vol. 37, no. 4, 2019
+#*   
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -237,6 +238,8 @@ def learningRateUpdate(errorVal:np.array, Λ_rate:float):
     return Λ_rate
 
 # Since the Φ matrix updation process is similar to SGD, we opt for a momentum based learning rate updation
+#! This was not the right approach as this modifies the δΨ matrix, artificially bringing down the 
+#! number of iterations, but ultimately does not contribute to the phase modification
 def learningRateMomentumUpdate(errorVal:np.array, velocity:np.array, Λ_rate:float):
     # Defining momentum coefficient
     β=0.75
