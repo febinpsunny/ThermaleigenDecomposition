@@ -122,9 +122,10 @@ def matrixPrint(matrix:np.array):
 def Ted_Algorithm(Φ:np.array , δΦ:np.array, T:np.array):
     # Iteratively calculate error function, update phase variables, relaunch TED iteration
     errorVal=[]
-    
-    # Velocity term for momentum calculation
+    # Velocity term for momentum calculation; not used rn
     velocity =[0]
+
+    iterCount=0
 
     Φ_old = Φ
     δΦ_old = δΦ
@@ -149,6 +150,7 @@ def Ted_Algorithm(Φ:np.array , δΦ:np.array, T:np.array):
     # The error analysis should show that the error between T and T_new are negligible (~16 orders of magnitude below 0)
     
     while(True):
+        iterCount+=1
         error=0
         
         Φ_new = TED_iteration(Φ_old , δΦ_old, Λ_rate, P, P_inv, T_D, T)
@@ -163,8 +165,13 @@ def Ted_Algorithm(Φ:np.array , δΦ:np.array, T:np.array):
 
         errorVal = np.append(errorVal, error)
 
-        if math.floor(math.log(np.abs(error),10))<=(-3):
+        if iterCount>1000:
+            sys.exit("Algorithm unable to reach convergence after 1000 iterations. Exiting code.") 
+        
+        #if math.floor(math.log(np.abs(error),10))<=(-3):
+        if convergenceCheck(errorVal):
             #* Threshold based stopping for the algorithm iteration
+            print("Last 5 error values leading to convergence",errorVal[-5:])
             return errorVal, δΦ_old
         else:
             #* Learning rate updation based on observed
@@ -173,7 +180,7 @@ def Ted_Algorithm(Φ:np.array , δΦ:np.array, T:np.array):
             if Λ_rate==0:
                 return errorVal, δΦ_old
             else:
-                continue          
+                continue      
 
 def TED_iteration(Φ:np.array , δΦ:np.array, Λ_rate:float, P:np.array, P_inv:np.array, T_D:np.array, T:np.array):
 
@@ -249,12 +256,19 @@ def learningRateMomentumUpdate(errorVal:np.array, velocity:np.array, Λ_rate:flo
 
     return Λ_rate
 
+def convergenceCheck(errorVal:np.array):
+    if len(errorVal)<10:
+        return False
+    else:
+        for i in errorVal[-5:]:
+            if math.floor(math.log(np.abs(i),10))>(-3):
+                return False
+    return True
+
 #* Core algorithm functions: END
 
 #* Graphing utility
 def plotGraph(errorList:np.array):
-    print("Final error list:",errorList)
-
     plt.plot(np.arange(0,len(errorList),1),errorList)
     plt.show()
 
