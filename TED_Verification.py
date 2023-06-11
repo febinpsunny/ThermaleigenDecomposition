@@ -7,30 +7,6 @@ import sys
 import math
 from TMatrixGen import *
 
-#* Thermal crosstalk coefficient calculation utilities: BEGIN 
-def TMatGen(size:int=10):
-    # TODO: This assertion is just a place holder; with proper T matrix generation through extrapolation this limiter can be lifted
-    assert size<=10, "Current T matrix generation only supports up to 10 MRs."
-    
-    # This is an accurate matrix implementation, obtained from HEAT simulations using a "folded" 10 MR MR-bank
-    # TODO: This function content needs to be replaced by the extrapolation function from these simulations for scalability!! 
-    T =   np.array([[1, 0.2270, 0.0072, 0.0004, 0.0001, 0.0009, 0.0020, 0.0088, 0.0431, 0.2270],    #0
-                    [0.2270, 1, 0.2270, 0.0072, 0.0004, 0.0020, 0.0088, 0.0431, 0.2270, 0.0431],    #1
-                    [0.0072, 0.2270, 1, 0.2270, 0.0072, 0.0088, 0.0431, 0.2270, 0.0431, 0.0088],    #2
-                    [0.0004, 0.0072, 0.2270, 1, 0.2270, 0.0431, 0.2270, 0.0431, 0.0088, 0.0020],    #3
-                    [0.0001, 0.0004, 0.0072, 0.2270, 1, 0.2270, 0.0431, 0.0088, 0.0020, 0.0009],    #4
-                    [0.0009, 0.0020, 0.0088, 0.0431, 0.2270, 1, 0.2270, 0.0072, 0.0004, 0.0001],    #5
-                    [0.0020, 0.0088, 0.0431, 0.2270, 0.0431, 0.2270, 1, 0.2270, 0.0072, 0.0004],    #6
-                    [0.0088, 0.0431, 0.2270, 0.0431, 0.0088, 0.0072, 0.2270, 1, 0.2270, 0.0072],    #7
-                    [0.0431, 0.2270, 0.0431, 0.0088, 0.0020, 0.0004, 0.0072, 0.2270, 1, 0.2270],    #8
-                    [0.2270, 0.0431, 0.0088, 0.0020, 0.0009, 0.0001, 0.0004, 0.0072, 0.2270, 1]])   #9
-    
-    T_new = np.array(T[0:size,0:size])
-
-    return T_new
-
-#* Thermal crosstalk coefficient calculation utilities: END 
-
 #* Core algorithm functions: BEGIN 
 def Ted_Algorithm(Φ:np.array , δΦ:np.array, T:np.array):
     # Iteratively calculate error function, update phase variables, relaunch TED iteration
@@ -200,8 +176,11 @@ def main():
     MatObj = TMatrixGen(waveguidePattern='Folded')
     #T = TMatGen(size)
 
-    T = MatObj.randomTMatrixGenerator()
+    T = MatObj.TMatGen()
 
+    # distanceMatrix = MatObj.waveguideGeometryManger()
+    # T = MatObj.TMatrixGenerator(distanceMatrix)
+    
     iterError, ΔΦ =Ted_Algorithm(Φ , δΦ, T)
 
     utility.plotGraph(iterError)

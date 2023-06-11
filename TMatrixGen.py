@@ -6,8 +6,12 @@ from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import PolynomialFeatures
 import matplotlib.pyplot as plt
 from scipy.stats import mode
+import warnings
+import functools
 import sys
 import math
+
+warnings.filterwarnings("always", category=DeprecationWarning)
 
 class utility:
     # Simple printing utility to show matrices better
@@ -57,6 +61,14 @@ class utility:
             else:
                 phaseMat=np.append(phaseMat, 0)
         return np.array(phaseMat)
+    
+    @staticmethod
+    def deprecated(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            warnings.warn("This function is deprecated. Use TMatrixGenerator() instead", category=DeprecationWarning)
+            return func(*args, **kwargs)
+        return wrapper
 
 class lossFunctions:
     #* Loss function calculation utilities: BEGIN
@@ -109,23 +121,31 @@ class lossFunctions:
 
 class TMatrixGen():
 
-    def __init__(self, arraySizeMR:np.int32=10, radiusMR:np.float32=5000, interMRdistance:np.float32=700, interWGdistance:np.float32=2000, waveguidePattern:str='Straight'):
+    def __init__(self, arraySizeMR:np.int32=10, radiusMR:np.float32=5000, gapMRWG:np.float32=5, interMRdistance:np.float32=700, widthWG:np.float32=450, 
+                 interWGdistance:np.float32=2000, waveguidePattern:str='Straight', polydegree:np.int32=5, Φ_input:np.array=[], distance:np.array=[],
+                 δΦ:np.array=[]):
         self.poly = None
         self.model = None
         self.countMR = arraySizeMR
         self.radiusMR = radiusMR
+        self.gapMRWG = gapMRWG
         self.interMRdistance = interMRdistance
+        self.widthWG = widthWG
         self.interWGdistance = interWGdistance
         self.waveguidePattern = waveguidePattern
+        self.polydegree = polydegree
+        self.Φ_input = Φ_input
+        self.distance = distance
+        self.δΦ = δΦ
 
-    def polyFitGenerator(self, polydegree:np.int16=5):
+    def polyFitGenerator(self):
         # TODO: Accept a csv file or similar config file with data to perform Polynomial regression
 
         # Controls row-wise values of the δΦ; data amputation performed to match dimensions with distance[]
-        Φ_input = [0, 0.048794847, 0.194480236, 0.767453116, 1.187525765, 1.690515667, 2.271208328, 3.644105958]
+        Φ_input = np.array([0, 0.048794847, 0.194480236, 0.767453116, 1.187525765, 1.690515667, 2.271208328, 3.644105958])
 
         # Controls column-wise values of the δΦ
-        distance = [700, 5132, 11400, 13926, 22100, 23836, 32800, 34117]
+        distance = np.array([700, 5132, 11400, 13926, 22100, 23836, 32800, 34117])
 
         # Dependant values; data amputation performed to match dimensions with distance[]
         δΦ =np.array([[0,	        0,	            0,	            0,	            0,	            0,	            0,	            0],
@@ -140,7 +160,7 @@ class TMatrixGen():
         # Generate coordinate pairs for the available independant variable data
         X = np.column_stack((np.repeat(Φ_input, len(distance)), np.tile(distance, len(Φ_input))))
 
-        poly = PolynomialFeatures(degree=polydegree)
+        poly = PolynomialFeatures(degree=self.polydegree)
         X_poly = poly.fit_transform(X)
 
         δΦ = δΦ.flatten()
@@ -165,7 +185,7 @@ class TMatrixGen():
             for i in range(self.countMR):
                 distance_row=[]
                 for j in range(self.countMR):
-                    distance = np.abs(j-i)*(self.radiusMR+self.interMRdistance)
+                    distance = np.abs(j-i)*(2*self.radiusMR+self.interMRdistance)
                     distance_row.append(distance)
                 distanceMatrix.append(distance_row)
         elif self.waveguidePattern=='Folded':
@@ -190,28 +210,135 @@ class TMatrixGen():
                         foldflagMr2=1
                     if foldflagMr2==foldflagMr1:
                         # If the MRs are on the same side of the fold utilize regular distance calculation
-                        distance = np.abs(j-i)*(self.radiusMR + self.interMRdistance)
+                        distance = np.abs(j-i)*(2*self.radiusMR + self.interMRdistance)
                     else:
                         # If the MRs are on the opposite sides of the fold utilize Pythagorian theorem for distance calculation
-                        vertical = self.radiusMR + self.interWGdistance
-                        horizontal = np.abs(((self.countMR-1)-i)-j)*(self.radiusMR + self.interMRdistance)
+                        vertical = 2*self.radiusMR + self.interWGdistance + 2*self.widthWG + 2*self.gapMRWG
+                        horizontal = np.abs(((self.countMR-1)-i)-j)*(2*self.radiusMR + self.interMRdistance)
                         distance = np.sqrt((vertical**2)+(horizontal**2))
                     distance_row.append(distance)
                 distanceMatrix.append(distance_row)
-            elif self.waveguidePattern=='Staggered':
-                # Waveguide geometry is a straight waveguide with MRs placed at regular staggered intervals; like so:
-                # O     O       O       O       O
-                #-----------------------------------
-                #    O      O       O       O                                     
-                                        
-        return np.array(distanceMatrix)
+        elif self.waveguidePattern=='Staggered':
+            # Waveguide geometry is a straight waveguide with MRs placed at regular staggered intervals; like so (note the numbering):
+            # O1     O3       O5       O7       O9
+            #---------------------------------------
+            #    O2      O4       O6       O8          
+            distanceMatrix=[]
+            for i in range(self.countMR):
+                if i%2==0:
+                    foldflagMr1=0
+                else:
+                    foldflagMr1=1
+                distance_row=[]
+                for j in range(self.countMR):
+                    if j%2==0:
+                        foldflagMr2=0
+                    else:
+                        foldflagMr2=1
+                    if foldflagMr2==foldflagMr1:
+                        # If the MRs are on the same side of the fold utilize regular distance calculation
+                        distance = np.abs(j-i)*(4*self.radiusMR + self.interMRdistance)
+                    else:
+                        # If the MRs are on the opposite sides of the fold utilize Pythagorian theorem for distance calculation
+                        vertical = 2*self.radiusMR + self.widthWG + 2*self.gapMRWG
+                        horizontal = np.abs(((self.countMR-1)-i)-j)*(2*self.radiusMR + 0.5*self.interMRdistance)
+                        distance = np.sqrt((vertical**2)+(horizontal**2))
+                    distance_row.append(distance)
+                distanceMatrix.append(distance_row)               
+        elif self.waveguidePattern=='Opposite':
+            # Waveguide geometry is a straight waveguide with MRs placed at regular intervals, opposite to each other; like so (note the numbering):
+            # O1     O3       O5       O7       O9
+            #--------------------------------------
+            # O2     O4       O6       O8      O10
+            distanceMatrix=[]
+            for i in range(self.countMR):
+                if i%2==0:
+                    foldflagMr1=0
+                else:
+                    foldflagMr1=1
+                distance_row=[]
+                for j in range(self.countMR):
+                    if j%2==0:
+                        foldflagMr2=0
+                    else:
+                        foldflagMr2=1
+                    if foldflagMr2==foldflagMr1:
+                        # If the MRs are on the same side of the fold utilize regular distance calculation
+                        distance = np.abs(j-i)*(2*self.radiusMR + self.interMRdistance)
+                    else:
+                        # If the MRs are on the opposite sides of the fold utilize Pythagorian theorem for distance calculation
+                        vertical = 2*self.radiusMR + self.widthWG + 2*self.gapMRWG
+                        horizontal = np.abs(((self.countMR-1)-i)-j)*(2*self.radiusMR + self.interMRdistance)
+                        distance = np.sqrt((vertical**2)+(horizontal**2))
+                    distance_row.append(distance)
+                distanceMatrix.append(distance_row)
+        elif self.waveguidePattern=='Staggered-fold':
+            # Waveguide geometry is a straight waveguide with MRs placed at regular staggered intervals; like so (note the numbering):
+            # O1     O2       O3       O4       O5
+            #---------------------------------------
+            #    O9      O8       O7       O6          
+            distanceMatrix=[]
+            fold = np.int32(np.ceil(self.countMR/2))
+            for i in range(self.countMR):
+                if i<fold:
+                    foldflagMr1=0
+                else:
+                    foldflagMr1=1
+                distance_row=[]
+                for j in range(self.countMR):
+                    if j<fold:
+                        foldflagMr2=0
+                    else:
+                        foldflagMr2=1
+                    if foldflagMr2==foldflagMr1:
+                        # If the MRs are on the same side of the fold utilize regular distance calculation
+                        distance = np.abs(j-i)*(4*self.radiusMR + self.interMRdistance)
+                    else:
+                        # If the MRs are on the opposite sides of the fold utilize Pythagorian theorem for distance calculation
+                        vertical = 2*self.radiusMR + self.widthWG + 2*self.gapMRWG
+                        horizontal = np.abs(((self.countMR-1)-i)-j)*(2*self.radiusMR + 0.5*self.interMRdistance)
+                        distance = np.sqrt((vertical**2)+(horizontal**2))
+                    distance_row.append(distance)
+                distanceMatrix.append(distance_row)               
+        elif self.waveguidePattern=='Opposite-fold':
+            # Waveguide geometry is a straight waveguide with MRs placed at regular intervals, opposite to each other; like so (note the numbering):
+            # O1     O2       O3       O4       O5
+            #--------------------------------------
+            # O10    O9       O8       O7      O6
+            distanceMatrix=[]
+            fold = np.int32(np.ceil(self.countMR/2))
+            for i in range(self.countMR):
+                if i<fold:
+                    foldflagMr1=0
+                else:
+                    foldflagMr1=1
+                distance_row=[]
+                for j in range(self.countMR):
+                    if j<fold:
+                        foldflagMr2=0
+                    else:
+                        foldflagMr2=1
+                    if foldflagMr2==foldflagMr1:
+                        # If the MRs are on the same side of the fold utilize regular distance calculation
+                        distance = np.abs(j-i)*(2*self.radiusMR + self.interMRdistance)
+                    else:
+                        # If the MRs are on the opposite sides of the fold utilize Pythagorian theorem for distance calculation
+                        vertical = 2*self.radiusMR + self.widthWG + 2*self.gapMRWG
+                        horizontal = np.abs(((self.countMR-1)-i)-j)*(2*self.radiusMR + self.interMRdistance)
+                        distance = np.sqrt((vertical**2)+(horizontal**2))
+                    distance_row.append(distance)
+                distanceMatrix.append(distance_row)
 
+        return np.array(distanceMatrix)
+    
+    #* Thermal crosstalk coefficient calculation utilities: BEGIN
     def thermalCrosstalkEstimator(self, distance:np.float32, Φ_value:np.float32=1):
         X = self.poly.transform([[Φ_value, distance]])
         thermalCrosstalkCoefficient = self.model.predict(X)
         return thermalCrosstalkCoefficient
 
     def TMatrixGenerator(self, distanceMatrix:np.array):
+        self.polyFitGenerator()
         T=[]
         for row in distanceMatrix:
             T_row=[]
@@ -219,6 +346,32 @@ class TMatrixGen():
                 T_row.append(self.thermalCrosstalkEstimator(distance=i))
             T.append(np.array(T_row).flatten())
         return T
+    
+    @utility.deprecated
+    def TMatGen(self):
+        size = self.countMR
+        # TODO: This assertion is just a place holder; with proper T matrix generation through extrapolation this limiter can be lifted
+        assert size<=10, "Current T matrix generation only supports up to 10 MRs."
+        
+        # This is an accurate matrix implementation, obtained from HEAT simulations using a "folded" 10 MR MR-bank
+        # TODO: This function content needs to be replaced by the extrapolation function from these simulations for scalability!! 
+        T =   np.array([[1, 0.2270, 0.0072, 0.0004, 0.0001, 0.0009, 0.0020, 0.0088, 0.0431, 0.2270],    #0
+                        [0.2270, 1, 0.2270, 0.0072, 0.0004, 0.0020, 0.0088, 0.0431, 0.2270, 0.0431],    #1
+                        [0.0072, 0.2270, 1, 0.2270, 0.0072, 0.0088, 0.0431, 0.2270, 0.0431, 0.0088],    #2
+                        [0.0004, 0.0072, 0.2270, 1, 0.2270, 0.0431, 0.2270, 0.0431, 0.0088, 0.0020],    #3
+                        [0.0001, 0.0004, 0.0072, 0.2270, 1, 0.2270, 0.0431, 0.0088, 0.0020, 0.0009],    #4
+                        [0.0009, 0.0020, 0.0088, 0.0431, 0.2270, 1, 0.2270, 0.0072, 0.0004, 0.0001],    #5
+                        [0.0020, 0.0088, 0.0431, 0.2270, 0.0431, 0.2270, 1, 0.2270, 0.0072, 0.0004],    #6
+                        [0.0088, 0.0431, 0.2270, 0.0431, 0.0088, 0.0072, 0.2270, 1, 0.2270, 0.0072],    #7
+                        [0.0431, 0.2270, 0.0431, 0.0088, 0.0020, 0.0004, 0.0072, 0.2270, 1, 0.2270],    #8
+                        [0.2270, 0.0431, 0.0088, 0.0020, 0.0009, 0.0001, 0.0004, 0.0072, 0.2270, 1]])   #9
+        
+        T_new = np.array(T[0:size,0:size])
+
+        return T_new
+
+
+    #* Thermal crosstalk coefficient calculation utilities: END 
 
     def randomTMatrixGenerator(self):
         T = np.random.rand(self.countMR, self.countMR)
@@ -226,8 +379,7 @@ class TMatrixGen():
         return T
 
 #? Testing Area
-MatObj = TMatrixGen(waveguidePattern='Folded')
-MatObj.polyFitGenerator()
-distanceMatrix = MatObj.waveguideGeometryManger()
-utility.matrixPrint(distanceMatrix)
-utility.matrixPrint(MatObj.TMatrixGenerator(distanceMatrix))
+# MatObj = TMatrixGen(waveguidePattern='Staggered')
+# distanceMatrix = MatObj.waveguideGeometryManger()
+# utility.matrixPrint(distanceMatrix)
+# utility.matrixPrint(MatObj.TMatrixGenerator(distanceMatrix))
