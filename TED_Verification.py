@@ -3,47 +3,12 @@
 #* M. Milanizadeh, et al., "Canceling Thermal Cross-Talk Effects in Photonic Integrated Circuits," IEEE JLT, vol. 37, no. 4, 2019
 
 import numpy as np
-import matplotlib.pyplot as plt
-from scipy.stats import mode
 import sys
 import math
-import TMatrixGen
-
-
-def phaseChange(size:int=10):
-    # Generate phae matrices and calculate difference to kick off the algorithm
-    # Considering phase values to be in radians ranging from 0 to 2π
-    stopLim=int(round(2*np.pi,5)*pow(10,5))
-
-    # Original phase variables Φ
-    Φ_original = np.random.randint(0,stopLim,(size))/pow(10,5)
-    # New phase values to be implemented in the MR bank
-    Φ =  np.random.randint(0,stopLim,(size))/pow(10,5)
-    # δΦ or change in phase value, which is the progenitor of thermal error 
-    δΦ = Φ_original-Φ
-    
-    return Φ , δΦ
-
-def radianManagement(inputPhaseMat:np.array):
-    # This utility function ensures the Φ matrices generated stay within the 0 to 2π range
-    # Phase values generated from the calculations can overflow and underflow this range
-    # To make sense of the iterations the Φ matrices should be processed to retain the range 
-    phaseMat=[]
-
-    twoπ=int(round(2*np.pi,5)*pow(10,5))
-
-    for i in inputPhaseMat:
-        if i>0:
-            phaseMat=np.append(phaseMat, (i*pow(10,5)%twoπ)/pow(10,5))
-        elif i<0:
-            temp=i*pow(10,5)%twoπ
-            phaseMat=np.append(phaseMat, (twoπ-temp)/pow(10,5))
-        else:
-            phaseMat=np.append(phaseMat, 0)
-    return np.array(phaseMat)
+from TMatrixGen import *
 
 #* Thermal crosstalk coefficient calculation utilities: BEGIN 
-def TMatrixGen(size:int=10):
+def TMatGen(size:int=10):
     # TODO: This assertion is just a place holder; with proper T matrix generation through extrapolation this limiter can be lifted
     assert size<=10, "Current T matrix generation only supports up to 10 MRs."
     
@@ -64,60 +29,7 @@ def TMatrixGen(size:int=10):
 
     return T_new
 
-def TMatrixGen_rand(size:int=10):
-    T = np.random.rand(size,size)
-    np.fill_diagonal(T, 1)
-
-    return T
 #* Thermal crosstalk coefficient calculation utilities: END 
-
-#* Loss function calculation utilities: BEGIN 
-def meanErrorCalc(Φ:np.array):
-    error =0
-    for i in Φ:
-        error=error+i
-        error=error/(len(Φ))
-    
-    return error
-
-def medianErrorCalc(Φ:np.array):
-    return np.median(Φ)
-
-def modeErrorCalc(Φ:np.array):
-    # Only concerning this iteration with primary mode
-    return mode(Φ)[0]
-
-def maxErrorCalc(Φ:np.array):
-    # This needs careful consideration as we need maximum absolute value, but should preserve 
-    # the sign of the value; i.e. np.max() alone is not useful and will lead to a constant 
-    # +ve step direction leading to the algorithm never converging
-    max=0
-    min=0
-    for i in Φ:
-        if i> max:
-            max =i
-        if i<min:
-            min = i
-    if np.abs(max)>np.abs(min):
-        return max
-    else:
-        return min
-
-# Modified MSE which preserves the directionality of the error
-def meanSquareErrorMod(Φ:np.array):
-    squaresum=0
-    for i in Φ:
-        squaresum= squaresum+(i*i)
-    MSE = squaresum/len(Φ)
-
-    return MSE*Φ[-1]/np.abs(Φ[-1])
-
-#* Loss function calculation utilities: END
-
-def matrixPrint(matrix:np.array):
-    for i in matrix:
-        print(*i)
-    return None
 
 #* Core algorithm functions: BEGIN 
 def Ted_Algorithm(Φ:np.array , δΦ:np.array, T:np.array):
@@ -159,7 +71,7 @@ def Ted_Algorithm(Φ:np.array , δΦ:np.array, T:np.array):
         δΦ_new = Φ_new-Φ_old
         #* This error term is basically the loss function of this algorithm and 
         #* we shall be trying to minimize it as much as possible, as fast as possible
-        error = meanErrorCalc(δΦ_new)
+        error = lossFunctions.meanErrorCalc(δΦ_new)
 
         Φ_old = Φ_new
         δΦ_old = δΦ_new
@@ -223,7 +135,7 @@ def TED_iteration(Φ:np.array , δΦ:np.array, Λ_rate:float, P:np.array, P_inv:
 
     Φ_new = np.array(np.real(np.dot(P,Ψ_new)))
     
-    Φ_new = radianManagement(Φ_new)
+    Φ_new = utility.radianManagement(Φ_new)
     
     return Φ_new
 
@@ -270,13 +182,6 @@ def convergenceCheck(errorVal:np.array):
 
 #* Core algorithm functions: END
 
-#* Graphing utility
-def plotGraph(errorList:np.array):
-    plt.plot(np.arange(0,len(errorList),1),errorList)
-    plt.show()
-
-    return None
-
 def main():
     args = sys.argv[1:]
 
@@ -289,19 +194,20 @@ def main():
         print("Size of MR bank expected as input")
         return None
     # generate phase matrices
-    Φ , δΦ = phaseChange(size)
+    Φ , δΦ = utility.phaseChange(size)
 
-    # Generate T-array 
-    #T = TMatrixGen(size)
+    # Generate T-array
+    MatObj = TMatrixGen(waveguidePattern='Folded')
+    #T = TMatGen(size)
 
-    T = TMatrixGen_rand(size)
+    T = MatObj.randomTMatrixGenerator()
 
     iterError, ΔΦ =Ted_Algorithm(Φ , δΦ, T)
 
-    plotGraph(iterError)
+    utility.plotGraph(iterError)
 
     print("Original phase values:", Φ)
-    print("Final phase values:", radianManagement(Φ+ΔΦ))
+    print("Final phase values:", utility.radianManagement(Φ+ΔΦ))
 
     return None
 
