@@ -1,13 +1,13 @@
 #* Author: Febin Sunny (06/05/2023)
-#* TED-based thermal crosstalk correction strategy, implemented using evaluatio from:
+#* TED-based thermal crosstalk correction strategy, implemented using theory from:
 #* M. Milanizadeh, et al., "Canceling Thermal Cross-Talk Effects in Photonic Integrated Circuits," IEEE JLT, vol. 37, no. 4, 2019
-#*   
 
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import mode
 import sys
 import math
+import TMatrixGen
 
 
 def phaseChange(size:int=10):
