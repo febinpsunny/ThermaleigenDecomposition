@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 from scipy.stats import mode
 import warnings
 import functools
+import yaml
 import sys
 import math
 
@@ -26,8 +27,8 @@ class utility:
     def plotGraph(errorList:np.array):
         plt.plot(np.arange(0,len(errorList),1),errorList)
         plt.show()
-        return None
-    
+        return None  
+   
     @staticmethod
     def phaseChange(size:int=10):
         # Generate phae matrices and calculate difference to kick off the algorithm
@@ -123,7 +124,7 @@ class TMatrixGen():
 
     def __init__(self, arraySizeMR:np.int32=10, radiusMR:np.float32=5000, gapMRWG:np.float32=5, interMRdistance:np.float32=700, widthWG:np.float32=450, 
                  interWGdistance:np.float32=2000, waveguidePattern:str='Straight', polydegree:np.int32=5, Φ_input:np.array=[], distance:np.array=[],
-                 δΦ:np.array=[]):
+                 δΦ_thermal:np.array=[]):
         self.poly = None
         self.model = None
         self.countMR = arraySizeMR
@@ -136,26 +137,32 @@ class TMatrixGen():
         self.polydegree = polydegree
         self.Φ_input = Φ_input
         self.distance = distance
-        self.δΦ = δΦ
+        self.δΦ_thermal = δΦ_thermal
 
-    def polyFitGenerator(self):
-        # TODO: Accept a csv file or similar config file with data to perform Polynomial regression
+    def polyFitGenerator(self):     
+        if self.Φ_input !=None and self.distance !=None and self.δΦ_thermal !=None:
+            if len(self.Φ_input)==len(self.distance)==len(self.δΦ_thermal):         
+                Φ_input = self.Φ_input
+                distance = self.distance
+                δΦ_thermal = self.δΦ_thermal
+            else:
+                sys.exit("Size mismatch betwen given phase, distance, and thermal crosstalk matrices.")
+        else:
+            # Controls row-wise values of the δΦ; data amputation performed to match dimensions with distance[]
+            Φ_input = np.array([0, 0.048794847, 0.194480236, 0.767453116, 1.187525765, 1.690515667, 2.271208328, 3.644105958])
 
-        # Controls row-wise values of the δΦ; data amputation performed to match dimensions with distance[]
-        Φ_input = np.array([0, 0.048794847, 0.194480236, 0.767453116, 1.187525765, 1.690515667, 2.271208328, 3.644105958])
+            # Controls column-wise values of the δΦ
+            distance = np.array([700, 5132, 11400, 13926, 22100, 23836, 32800, 34117])
 
-        # Controls column-wise values of the δΦ
-        distance = np.array([700, 5132, 11400, 13926, 22100, 23836, 32800, 34117])
-
-        # Dependant values; data amputation performed to match dimensions with distance[]
-        δΦ =np.array([[0,	        0,	            0,	            0,	            0,	            0,	            0,	            0],
-                    [0.011050455,	0.002019767,	0.000281602,	0.000145656,	1.94208e-05,	1.94208e-05,	0,	            0],
-                    [0.044065873,	0.008088778,	0.001136119,	0.000572915,	0.000106815,	8.73938e-05,	3.88417e-05,	1.94208e-05],
-                    [0.174301989,	0.032102639,	0.004466792,	0.002281948,	0.000407838,	0.000330154,	9.71042e-05,	9.71042e-05],
-                    [0.27021178,	0.049882413,	0.006952659,	0.003544302,	0.000650598,	0.000514652,	0.000155367,	0.000155367],
-                    [0.385474433,	0.071342435,	0.009943467,	0.005078548,	0.00092249,	    0.000737992,	0.000252471,	0.000203919],
-                    [0.519080064,	0.096405022,	0.013429507,	0.006865265,	0.001242933,	0.001000173,	0.000310733,	0.000281602],
-                    [0.83714478,	0.15662903,	    0.021848439,	0.011157269,	0.002019767,	0.00163135,	    0.000524363,	0.00045639]])
+            # Dependant values; data amputation performed to match dimensions with distance[]
+            δΦ_thermal =np.array([[0,	        0,	            0,	            0,	            0,	            0,	            0,	            0],
+                        [0.011050455,	0.002019767,	0.000281602,	0.000145656,	1.94208e-05,	1.94208e-05,	0,	            0],
+                        [0.044065873,	0.008088778,	0.001136119,	0.000572915,	0.000106815,	8.73938e-05,	3.88417e-05,	1.94208e-05],
+                        [0.174301989,	0.032102639,	0.004466792,	0.002281948,	0.000407838,	0.000330154,	9.71042e-05,	9.71042e-05],
+                        [0.27021178,	0.049882413,	0.006952659,	0.003544302,	0.000650598,	0.000514652,	0.000155367,	0.000155367],
+                        [0.385474433,	0.071342435,	0.009943467,	0.005078548,	0.00092249,	    0.000737992,	0.000252471,	0.000203919],
+                        [0.519080064,	0.096405022,	0.013429507,	0.006865265,	0.001242933,	0.001000173,	0.000310733,	0.000281602],
+                        [0.83714478,	0.15662903,	    0.021848439,	0.011157269,	0.002019767,	0.00163135,	    0.000524363,	0.00045639]])
         
         # Generate coordinate pairs for the available independant variable data
         X = np.column_stack((np.repeat(Φ_input, len(distance)), np.tile(distance, len(Φ_input))))
@@ -163,10 +170,10 @@ class TMatrixGen():
         poly = PolynomialFeatures(degree=self.polydegree)
         X_poly = poly.fit_transform(X)
 
-        δΦ = δΦ.flatten()
+        δΦ_thermal = δΦ_thermal.flatten()
 
         model = LinearRegression()
-        model.fit(X_poly, δΦ)
+        model.fit(X_poly, δΦ_thermal)
         
         self.poly=poly
         self.model = model
@@ -347,14 +354,19 @@ class TMatrixGen():
             T.append(np.array(T_row).flatten())
         return T
     
+    def randomTMatrixGenerator(self):
+        T = np.random.rand(self.countMR, self.countMR)
+        np.fill_diagonal(T, 1)
+        return T
+        
     @utility.deprecated
     def TMatGen(self):
         size = self.countMR
-        # TODO: This assertion is just a place holder; with proper T matrix generation through extrapolation this limiter can be lifted
+        
         assert size<=10, "Current T matrix generation only supports up to 10 MRs."
         
         # This is an accurate matrix implementation, obtained from HEAT simulations using a "folded" 10 MR MR-bank
-        # TODO: This function content needs to be replaced by the extrapolation function from these simulations for scalability!! 
+        
         T =   np.array([[1, 0.2270, 0.0072, 0.0004, 0.0001, 0.0009, 0.0020, 0.0088, 0.0431, 0.2270],    #0
                         [0.2270, 1, 0.2270, 0.0072, 0.0004, 0.0020, 0.0088, 0.0431, 0.2270, 0.0431],    #1
                         [0.0072, 0.2270, 1, 0.2270, 0.0072, 0.0088, 0.0431, 0.2270, 0.0431, 0.0088],    #2
@@ -370,13 +382,8 @@ class TMatrixGen():
 
         return T_new
 
-
     #* Thermal crosstalk coefficient calculation utilities: END 
 
-    def randomTMatrixGenerator(self):
-        T = np.random.rand(self.countMR, self.countMR)
-        np.fill_diagonal(T, 1)
-        return T
 
 #? Testing Area
 # MatObj = TMatrixGen(waveguidePattern='Staggered')

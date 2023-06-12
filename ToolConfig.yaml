@@ -1,0 +1,23 @@
+## MR physical dimensions and MR bank configuration;
+## all of these should be in nanometers (nm)
+MR-array-size: 10
+MR-radius: 5000
+MR-gap-from-waveguide: 5 
+inter-MR-distance: 700 
+Waveguide-width: 450
+Distance-between-waveguides: 2000
+# Supported waveguide patterns: Straight, Folded, Staggered, Opposite, Staggered-fold, Opposite-fold
+waveguide-Pattern: 'Straight'
+
+## Thermal Eigenmode analysis (OPIONAL inputs)
+
+# Provide CSV files for the follwoing data; if none are provided data generated from our experiments shall be used
+# Phase input used in your HEAT simulations
+Φ_input:
+# distance between the two MRs in HEAT simulations
+distance:
+# Thermal crosstalk observed in your HEAT simulations
+δΦ:
+
+# Provide polynomial degree for multivariate polynomial regression (curve fitting)
+polynomial-degree: 
